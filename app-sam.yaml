@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Serverless Application Model template for Counter application demonstrating
+  CodeBuild .NET Core Lambda build capability.
+
+Resources:  
+  DefaultFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: 'ServerlessImageResizing::ServerlessImageResizing.Functions::Get'
+      Runtime: dotnetcore1.0
+      CodeUri: 
+      Description: 'Simple example that demonstrates how to resize images on-the-fly using Amazon API Gateway, AWS Lambda, and Amazon S3.' 
+      Timeout: 30
+      MemorySize: 256
+      Policies:
+      - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          BucketName:
+            Ref: S3Bucket
+  
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: serverless-image-resizing
+  
+# Outputs:

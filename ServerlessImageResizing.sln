@@ -9,9 +9,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerlessImageResizing.Tes
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionFolder", "{C22C79E5-E9E7-45B4-BA5C-0F4922E94A23}"
 ProjectSection(SolutionItems) = preProject
-	..\app-sam.yaml = ..\app-sam.yaml
-	..\buildspec.yml = ..\buildspec.yml
-	..\README.md = ..\README.md
+	app-sam.yaml = app-sam.yaml
+	buildspec.yml = buildspec.yml
+	README.md = README.md
 EndProjectSection
 EndProject
 Global
