@@ -9,6 +9,7 @@ using Amazon.Lambda.Core;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.S3;
 using Amazon.S3.Model;
+using Amazon.S3.Transfer;
 using SixLabors.ImageSharp;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
@@ -20,6 +21,7 @@ namespace ServerlessImageResizing
     {
         private static IAmazonS3 _client;
         private readonly string _bucketName;
+        private const string TempDir = "/tmp/";
 
         /// <summary>
         /// Default constructor that Lambda will invoke.
@@ -27,7 +29,8 @@ namespace ServerlessImageResizing
         public Functions()
         {
             _client = new AmazonS3Client(RegionEndpoint.APSoutheast2);
-            _bucketName = Environment.GetEnvironmentVariable("BucketName");
+            //_bucketName = Environment.GetEnvironmentVariable("S3_BUCKET");
+            _bucketName = "serverless-image-resizing-tmp";
         }
 
 
@@ -40,8 +43,23 @@ namespace ServerlessImageResizing
         {
             context.Logger.LogLine("Get Request\n");
             var sourceUrl = request.QueryStringParameters["source"];
-            var mimeType = GetMimeType(sourceUrl);
-            string convertedImageUrl;
+        
+            var resizedImageUrl = ResizeImage(sourceUrl);
+
+            var response = new APIGatewayProxyResponse
+            {
+                StatusCode = (int) HttpStatusCode.OK,
+                Body = resizedImageUrl,
+                Headers = new Dictionary<string, string> {{"Content-Type", "text/plain"}}
+            };
+
+            return response;
+        }
+
+        private string ResizeImage(string sourceUrl)
+        {
+            var extension = GetImageExtension(sourceUrl);
+            var tempFile = string.Format("{0}.{1}", Guid.NewGuid().ToString("N"), extension);
 
             using (var client = new HttpClient())
             {
@@ -52,62 +70,57 @@ namespace ServerlessImageResizing
                     image.Mutate(x => x
                         .Resize(image.Width / 2, image.Height / 2));
 
-                    convertedImageUrl = UploadToS3(image.SavePixelData(), mimeType);
+                    var filePath = Path.Combine(TempDir, tempFile);
+
+                    image.Save(filePath);
+
+                     return UploadToS3(image.SavePixelData(), filePath, extension);
                 }
             }
+        }
 
-            var response = new APIGatewayProxyResponse
+
+        private string UploadToS3(byte[] imageDataBytes, string filePath, string extension)
+        {
+            var key = string.Format("{0}.png", Guid.NewGuid());
+
+            var ms = new MemoryStream(imageDataBytes);
+
+            var fileTransferUtilityRequest = new TransferUtilityUploadRequest
             {
-                StatusCode = (int) HttpStatusCode.OK,
-                Body = convertedImageUrl,
-                Headers = new Dictionary<string, string> {{"Content-Type", mimeType}}
+                // InputStream = ms,
+                BucketName = _bucketName,
+                AutoResetStreamPosition = false,
+                CannedACL = S3CannedACL.PublicRead,
+                ContentType = string.Format("image/{0}", extension),
+                Key = key,
+                FilePath = filePath
             };
 
-            return response;
+
+            using (var fileTransferUtility = new TransferUtility(_client))
+            {
+                fileTransferUtility.Upload(fileTransferUtilityRequest);
+            }
+
+            return string.Format("https://s3-{0}.amazonaws.com/{1}/{2}", Environment.GetEnvironmentVariable("AWS_REGION"), _bucketName, key);
         }
 
-        private static string GetMimeType(string sourceUrl)
+        /// <summary>
+        /// Returns the extension of the source image
+        /// </summary>
+        /// <param name="sourceUrl"></param>
+        /// <returns></returns>
+        private static string GetImageExtension(string sourceUrl)
         {
             try
             {
-                var ext = Path.GetExtension(sourceUrl).Remove(0);
-                return string.Format("image/{0}", ext);
+                return Path.GetExtension(sourceUrl).Remove(0);
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                return "image/png";
+                return "png"; // Default to PNG if file extension is missing.
             }
-        }
-
-        private string UploadToS3(byte[] imageDataBytes, string mimeType)
-        {
-            try
-            {
-                var key = string.Format("{0}", Guid.NewGuid());
-
-                var request = new PutObjectRequest
-                {
-                    BucketName = _bucketName,
-                    CannedACL = S3CannedACL.PublicRead,
-                    Key = key,
-                    ContentType = mimeType
-                };
-
-                using (var ms = new MemoryStream(imageDataBytes))
-                {
-                    request.InputStream = ms;
-                    var resp = _client.PutObjectAsync(request);
-                    Console.WriteLine(resp.Result.ETag);
-                    return string.Format("https://s3-ap-southeast-2.amazonaws.com/serverless-image-resizing-tmp/{0}",
-                        key);
-                }
-            }
-            catch (Exception ex)
-            {
-                // ignored
-            }
-
-            return null;
         }
     }
 }

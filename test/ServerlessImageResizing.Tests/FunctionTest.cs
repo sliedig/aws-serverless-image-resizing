@@ -31,7 +31,7 @@ namespace ServerlessImageResizing.Tests
             var response = functions.Get(request, context);
             
             Assert.Equal(200, response.StatusCode);
-            Assert.Equal("Hello AWS Serverless", response.Body);
+            Assert.StartsWith("https://s3", response.Body);
         }
     }
 }
