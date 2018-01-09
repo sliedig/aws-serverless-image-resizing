@@ -8,7 +8,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: 'ServerlessImageResizing::ServerlessImageResizing.Functions::Get'
-      Runtime: dotnetcore1.0
+      Runtime: dotnetcore2.0
       CodeUri: src/
       Description: 'Simple example that demonstrates how to resize images on-the-fly using Amazon API Gateway, AWS Lambda, and Amazon S3.' 
       Timeout: 30

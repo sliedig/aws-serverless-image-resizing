@@ -8,7 +8,6 @@ using Amazon;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.S3;
-using Amazon.S3.Model;
 using Amazon.S3.Transfer;
 using SixLabors.ImageSharp;
 
@@ -19,8 +18,9 @@ namespace ServerlessImageResizing
 {
     public class Functions
     {
-        private static IAmazonS3 _client;
-        private readonly string _bucketName;
+        private static IAmazonS3 _s3Client;
+        private readonly string _s3BucketName;
+        private readonly string _awsRegion;
         private const string TempDir = "/tmp/";
 
         /// <summary>
@@ -28,11 +28,12 @@ namespace ServerlessImageResizing
         /// </summary>
         public Functions()
         {
-            _client = new AmazonS3Client(RegionEndpoint.APSoutheast2);
-            //_bucketName = Environment.GetEnvironmentVariable("S3_BUCKET");
-            _bucketName = "serverless-image-resizing-tmp";
+            _awsRegion = Environment.GetEnvironmentVariable("AWS_REGION");
+            _s3Client = new AmazonS3Client(RegionEndpoint.GetBySystemName(_awsRegion));
+            _s3BucketName = Environment.GetEnvironmentVariable("S3_BUCKET");
+            
+            // Todo: check to see if the S3 bucket exists. If not create it.
         }
-
 
         /// <summary>
         /// A Lambda function to respond to HTTP Get methods from API Gateway
@@ -41,21 +42,40 @@ namespace ServerlessImageResizing
         /// <returns>The list of blogs</returns>
         public APIGatewayProxyResponse Get(APIGatewayProxyRequest request, ILambdaContext context)
         {
-            context.Logger.LogLine("Get Request\n");
             var sourceUrl = request.QueryStringParameters["source"];
-        
-            var resizedImageUrl = ResizeImage(sourceUrl);
-
-            var response = new APIGatewayProxyResponse
+            context.Logger.LogLine(string.Format("Received request to convert source image: {0}", sourceUrl));
+            
+            APIGatewayProxyResponse response;
+            
+            if (sourceUrl != null)
             {
-                StatusCode = (int) HttpStatusCode.OK,
-                Body = resizedImageUrl,
-                Headers = new Dictionary<string, string> {{"Content-Type", "text/plain"}}
-            };
+                var resizedImageUrl = ResizeImage(sourceUrl);
 
+                response = new APIGatewayProxyResponse
+                {
+                    StatusCode = (int) HttpStatusCode.OK,
+                    Body = resizedImageUrl,
+                    Headers = new Dictionary<string, string> {{"Content-Type", "text/plain"}}
+                };    
+            }
+            else
+            {
+                response = new APIGatewayProxyResponse
+                {
+                    StatusCode = (int) HttpStatusCode.BadRequest,
+                    Body = "Unable to process file. File name is empty.",
+                    Headers = new Dictionary<string, string> {{"Content-Type", "text/plain"}}
+                };
+            }
+            
             return response;
         }
 
+        /// <summary>
+        /// Resize operation
+        /// </summary>
+        /// <param name="sourceUrl">source file url</param>
+        /// <returns></returns>
         private string ResizeImage(string sourceUrl)
         {
             var extension = GetImageExtension(sourceUrl);
@@ -74,22 +94,25 @@ namespace ServerlessImageResizing
 
                     image.Save(filePath);
 
-                     return UploadToS3(image.SavePixelData(), filePath, extension);
+                     return UploadToS3(filePath, extension);
                 }
             }
         }
 
-
-        private string UploadToS3(byte[] imageDataBytes, string filePath, string extension)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="filePath">location of resized file in tmp storage</param>
+        /// <param name="extension">file extension</param>
+        /// <returns>Url of the object stored in S3 bucket.</returns>
+        private string UploadToS3(string filePath, string extension)
         {
             var key = string.Format("{0}.png", Guid.NewGuid());
-
-            var ms = new MemoryStream(imageDataBytes);
-
+            
             var fileTransferUtilityRequest = new TransferUtilityUploadRequest
             {
                 // InputStream = ms,
-                BucketName = _bucketName,
+                BucketName = _s3BucketName,
                 AutoResetStreamPosition = false,
                 CannedACL = S3CannedACL.PublicRead,
                 ContentType = string.Format("image/{0}", extension),
@@ -97,13 +120,12 @@ namespace ServerlessImageResizing
                 FilePath = filePath
             };
 
-
-            using (var fileTransferUtility = new TransferUtility(_client))
+            using (var fileTransferUtility = new TransferUtility(_s3Client))
             {
                 fileTransferUtility.Upload(fileTransferUtilityRequest);
             }
 
-            return string.Format("https://s3-{0}.amazonaws.com/{1}/{2}", Environment.GetEnvironmentVariable("AWS_REGION"), _bucketName, key);
+            return string.Format("https://s3-{0}.amazonaws.com/{1}/{2}", _awsRegion, _s3BucketName, key);
         }
 
         /// <summary>

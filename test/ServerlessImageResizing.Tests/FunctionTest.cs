@@ -7,7 +7,6 @@ using Xunit;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.TestUtilities;
 using Amazon.Lambda.APIGatewayEvents;
-
 using ServerlessImageResizing;
 
 namespace ServerlessImageResizing.Tests
@@ -21,9 +20,13 @@ namespace ServerlessImageResizing.Tests
         [Fact]
         public void TestGetMethod()
         {
-            var request = new APIGatewayProxyRequest();
-            request.QueryStringParameters = new Dictionary<string, string>();
-            request.QueryStringParameters.Add(new KeyValuePair<string, string>("source", "http://via.placeholder.com/500x300"));
+            var request = new APIGatewayProxyRequest
+            {
+                QueryStringParameters = new Dictionary<string, string>
+                {
+                    {"source", "http://via.placeholder.com/500x300"}
+                }
+            };
 
             var functions = new Functions();
             var context = new TestLambdaContext();
