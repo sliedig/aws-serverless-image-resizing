@@ -7,13 +7,13 @@ phases:
   pre_build:
     commands:
       - echo Installing dependencies - `pwd`
-      - dotnet restore CodeBuildNetCoreLambda/CodeBuildNetCoreLambda.csproj
+      - dotnet restore src/ServerlessImageResizing/ServerlessImageResizing.csproj
       - echo Dependencies install completed `date`
   build:
     commands:
       - echo Starting build `date` in `pwd`
-      - cd CodeBuildNetCoreLambda && dotnet lambda package
-      - aws cloudformation package --template app-sam.yaml --s3-bucket $S3_BUCKET --output-template app-sam-export.yaml
+      - cd src/ServerlessImageResizing && dotnet lambda package
+      - aws cloudformation package --template template.yaml --s3-bucket $S3_BUCKET --output-template template-export.yaml
 
 artifacts:
   type: zip

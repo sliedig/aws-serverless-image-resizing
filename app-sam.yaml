@@ -9,27 +9,26 @@ Resources:
     Properties:
       Handler: 'ServerlessImageResizing::ServerlessImageResizing.Functions::Get'
       Runtime: dotnetcore2.0
-      CodeUri: src/
+      CodeUri: 
       Description: 'Simple example that demonstrates how to resize images on-the-fly using Amazon API Gateway, AWS Lambda, and Amazon S3.' 
       Timeout: 30
       MemorySize: 256
       Policies:
-      - AWSLambdaBasicExecutionRole
-      - AmazonS3FullAccess
+       - S3CrudPolicy:
+           BucketName: !Ref S3Bucket
       Environment:
         Variables:
-          S3_BUCKET:
-            Ref: S3Bucket
+          S3_BUCKET: !Ref S3Bucket
       Events:
         GetResource:
           Type: Api
            Properties:
             Path: /
             Method: GET
-  
   S3Bucket:
     Type: AWS::S3::Bucket
-    Properties:
-      BucketName: serverless-image-resizing
   
-# Outputs:
+Outputs:
+  DownloadS3Bucket:
+    Description: S3 bucket destination of resized images.
+    Value: !Ref S3Bucket
